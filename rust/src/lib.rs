@@ -2,6 +2,7 @@ pub mod keys;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Once;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{Result, ToSql};
@@ -9,18 +10,23 @@ use serde::{Deserialize, Serialize};
 use keys::{AssetClass, Category, Exchange};
 
 
-static EMBEDDED_DATABASE: &[u8] = include_bytes!("../sqlite/symbols.db");
+const EMBEDDED_DATABASE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/symbols.db"));
 
 lazy_static::lazy_static! {
     static ref DATABASE_POOL: Pool<SqliteConnectionManager> = {
+        static INIT: Once = Once::new();
+
         let db_file = "symbols.db";
         let db_path = PathBuf::from(db_file);
 
-        if !db_path.exists() {
-            std::fs::write(db_file, EMBEDDED_DATABASE)
-                .expect("Failed to write embedded database to file");
-        }
-        let manager = SqliteConnectionManager::file(db_file);
+        INIT.call_once(|| {
+            if !db_path.exists() {
+                std::fs::write(&db_path, EMBEDDED_DATABASE)
+                    .expect("Failed to write embedded database to file");
+            }
+        });
+
+        let manager = SqliteConnectionManager::file(&db_path);
         let pool = Pool::new(manager).expect("Failed to create database connection pool");
 
         pool

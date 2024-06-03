@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::error::Error;
 use rusqlite::params;
 use scraper::{Html, Selector};
@@ -136,18 +136,13 @@ fn insert_document(conn: &Connection, doc: &Ticker) -> Result<()> {
 
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let current_dir = std::env::current_dir()?;
-    let db_dir = current_dir.join("sqlite");
-    let db_path = db_dir.join("symbols.db");
+    let out_dir = PathBuf::from(std::env::var("OUT_DIR")?);
+    let db_path = out_dir.join("symbols.db");
 
-    if !db_dir.exists() {
-        std::fs::create_dir_all(&db_dir)?;
+    if !db_path.exists() {
+        std::fs::create_dir_all(&out_dir)?;
         save_symbols(&db_path)?;
-    } else {
-        println!("Database already exists. Skipping build script.");
     }
-
-    println!("cargo:rustc-env=DATABASE_PATH={}", db_path.display());
 
     Ok(())
 }

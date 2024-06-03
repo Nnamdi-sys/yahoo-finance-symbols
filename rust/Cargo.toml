@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2021"
 build = "build.rs"
 readme = "../README.md"
-exclude = ["sqlite", "symbols.db"]
+exclude = ["symbols.db"]
+repository = "https://github.com/Nnamdi-sys/yahoo-finance-symbols"
+license = "MIT"
 
 
 [dependencies]

@@ -3,6 +3,8 @@ name = "yahoo-finance-symbols-py"
 version = "0.1.0"
 edition = "2021"
 readme = "../README.md"
+repository = "https://github.com/Nnamdi-sys/yahoo-finance-symbols"
+license = "MIT"
 
 [lib]
 name = "yahoo_finance_symbols"
