@@ -1,0 +1,27 @@
+[package]
+name = "yahoo-finance-symbols"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+readme = "../README.md"
+exclude = ["sqlite", "symbols.db"]
+
+
+[dependencies]
+rusqlite = { version = "0.31.0", features = ["bundled"] }
+reqwest = { version = "0.12.4", features = ["json", "blocking"] }
+tokio = { version = "1.32.0", features = ["full"] }
+serde = { version = "1.0.183", features = ["derive"] }
+r2d2 = "0.8.10"
+r2d2_sqlite = "0.24.0"
+lazy_static = "1.4.0"
+
+
+[build-dependencies]
+rusqlite = { version = "0.31.0", features = ["bundled"] }
+reqwest = { version = "0.12.4", features = ["json", "blocking"] }
+serde = { version = "1.0.183", features = ["derive"] }
+scraper = "0.19.0"
+html-escape = "0.2.13"
+
+

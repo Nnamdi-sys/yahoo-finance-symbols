@@ -1,0 +1,14 @@
+[package]
+name = "yahoo-finance-symbols-py"
+version = "0.1.0"
+edition = "2021"
+readme = "../README.md"
+
+[lib]
+name = "yahoo_finance_symbols"
+crate-type = ["cdylib"]
+
+[dependencies]
+yahoo-finance-symbols = { path = "../rust" }
+tokio = { version = "1.32.0", features = ["full"] }
+pyo3 = { version = "0.21.2", features = ["extension-module", "generate-import-lib"] }
