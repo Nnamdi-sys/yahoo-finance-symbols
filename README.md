@@ -4,6 +4,8 @@ This Library helps in scraping over 200,000+ symbols from yahoo finance. The sym
 
 ## Installation
 
+Installation would take about 10 Minutes as symbols would be scraped and written to a sqlite database during the build process.
+
 ### Python
 
 ``` bash
