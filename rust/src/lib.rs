@@ -1,36 +1,45 @@
 pub mod keys;
+pub mod scraper;
 
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Once;
 use r2d2::Pool;
-use r2d2_sqlite::SqliteConnectionManager;
+use std::error::Error;
+use std::path::PathBuf;
+use scraper::save_symbols;
+use std::collections::HashMap;
 use rusqlite::{Result, ToSql};
 use serde::{Deserialize, Serialize};
+use r2d2_sqlite::SqliteConnectionManager;
 use keys::{AssetClass, Category, Exchange};
 
 
-const EMBEDDED_DATABASE: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/symbols.db"));
+static EMBEDDED_DATABASE: &[u8] = include_bytes!("sqlite/symbols.db");
 
 lazy_static::lazy_static! {
     static ref DATABASE_POOL: Pool<SqliteConnectionManager> = {
-        static INIT: Once = Once::new();
-
         let db_file = "symbols.db";
         let db_path = PathBuf::from(db_file);
 
-        INIT.call_once(|| {
-            if !db_path.exists() {
-                std::fs::write(&db_path, EMBEDDED_DATABASE)
-                    .expect("Failed to write embedded database to file");
-            }
-        });
-
-        let manager = SqliteConnectionManager::file(&db_path);
+        if !db_path.exists() {
+            std::fs::write(db_file, EMBEDDED_DATABASE)
+                .expect("Failed to write embedded database to file");
+        }
+        let manager = SqliteConnectionManager::file(db_file);
         let pool = Pool::new(manager).expect("Failed to create database connection pool");
 
         pool
     };
+}
+
+
+pub async fn update_database() -> Result<(), Box<dyn Error>> {
+    let db_file = "symbols.db";
+    let db_path = PathBuf::from(db_file);
+
+    save_symbols(&db_path).await?;
+
+    println!("Database updated successfully.");
+
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -270,6 +279,7 @@ mod tests {
     use crate::keys::{AssetClass, Category, Exchange};
     #[tokio::test]
     async fn check_symbols_count() {
+
         let res1 = get_symbols(AssetClass::All, Category::All, Exchange::All).unwrap();
         assert!(res1.len() >= 200000);
 

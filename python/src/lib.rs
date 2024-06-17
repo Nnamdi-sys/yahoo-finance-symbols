@@ -1,13 +1,14 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use std::collections::HashMap;
-use yahoo_finance_symbols::get_symbols;
+use yahoo_finance_symbols::{get_symbols, update_database};
 use yahoo_finance_symbols::keys::{AssetClass, Exchange, Category};
 
 
 #[pymodule]
 #[pyo3(name = "yahoo_finance_symbols")]
 fn yahoo_finance_symbols_py(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(update_database_py, m)?).unwrap();
     m.add_function(wrap_pyfunction!(search_symbols_py, m)?).unwrap();
     m.add_function(wrap_pyfunction!(get_symbols_py, m)?).unwrap();
     Ok(())
@@ -100,4 +101,15 @@ pub fn get_symbols_py() -> PyObject {
         .expect("Failed to create DataFrame");
     df.into()
     })
+}
+
+#[pyfunction]
+#[pyo3(name = "update_database")]
+pub fn update_database_py() {
+    tokio::task::block_in_place(move || {
+         tokio::runtime::Runtime::new().unwrap().block_on(
+            update_database()
+        ).unwrap()   
+        })
+
 }
