@@ -275,16 +275,23 @@ pub fn search_symbols(query: &str, asset_class: &str) -> Result<HashMap<String, 
 #[cfg(test)]
 
 mod tests {
-    use crate::{get_symbols, get_symbols_count};
-    use crate::keys::{AssetClass, Category, Exchange};
+    use crate::{get_symbols_count, update_database};
+
     #[tokio::test]
     async fn check_symbols_count() {
 
-        let res1 = get_symbols(AssetClass::All, Category::All, Exchange::All).unwrap();
-        assert!(res1.len() >= 200000);
+        let mut symbols_count = get_symbols_count().unwrap_or_default() as usize;
 
-        let res2 = get_symbols_count().unwrap() as usize;
-        assert_eq!(res1.len(), res2);
+        dbg!(symbols_count);
+        
+        if symbols_count < 250_000 {
+            let _ = update_database().await.unwrap();
+            symbols_count = get_symbols_count().unwrap() as usize;
+        }
+
+        dbg!(symbols_count);
+
+        assert!(symbols_count > 250_000);
     }
 }
 

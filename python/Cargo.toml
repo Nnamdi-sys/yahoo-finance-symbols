@@ -1,6 +1,6 @@
 [package]
 name = "yahoo-finance-symbols-py"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 readme = "../README.md"
 description = "A Library for scraping all Ticker Symbols from Yahoo Finance"

@@ -1,11 +1,15 @@
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 use std::error::Error;
 use rusqlite::params;
 use scraper::{Html, Selector};
+use r2d2::Pool;
 use rusqlite::{Connection, Result};
+use r2d2_sqlite::SqliteConnectionManager;
 use serde::{Deserialize, Serialize};
 use reqwest::Client;
+use futures::future::join_all;
 use indicatif::{ProgressBar, ProgressStyle};
+use tokio::sync::Semaphore;
 
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -23,7 +27,9 @@ struct Ticker {
 }
 
 pub async fn save_symbols(db_path: &Path) -> Result<(), Box<dyn Error>> {
-    let conn = Connection::open(db_path)?;
+    let manager = SqliteConnectionManager::file(db_path);
+    let pool = Pool::new(manager)?;
+    let conn = pool.get()?;
     conn.execute(
         "CREATE TABLE IF NOT EXISTS symbols (
              symbol TEXT PRIMARY KEY,
@@ -36,31 +42,56 @@ pub async fn save_symbols(db_path: &Path) -> Result<(), Box<dyn Error>> {
     )?;
 
     let base_url = "https://finance.yahoo.com/lookup/";
-    let sectors = ["all", "equity", "mutualfund", "etf", "index", "future", "currency"];
-    let search_set: Vec<char> = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".chars().collect();
-    let total_steps = sectors.len() * search_set.len();
+    let search_set: Vec<String> = (b'A'..=b'Z')
+        .chain(b'0'..=b'9')
+        .map(|c| format!("{}", c as char))
+        .chain(
+            (b'A'..=b'Z')
+                .flat_map(|c1| (b'A'..=b'Z').map(move |c2| format!("{}{}", c1 as char, c2 as char))),
+        )
+        .collect();
+    let total_steps = search_set.len();
 
     // Create and configure the progress bar
     let pb = ProgressBar::new(total_steps as u64);
-    pb.set_style(ProgressStyle::default_bar()
-        .template("{msg} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")?
-        .progress_chars("#>-"));
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("{msg} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})")?
+            .progress_chars("#>-"),
+    );
 
-    for sector in &sectors {
-        for &c1 in &search_set {
-            let symbol = format!("{}", c1);
-            pb.set_message(format!("Processing sector: {}, symbol: {}", sector, &symbol));
+    let concurrency_limit = 10; // Set the desired concurrency limit
+    let semaphore = Arc::new(Semaphore::new(concurrency_limit));
+    let mut tasks = Vec::new();
 
-            let result = scrape_symbols(base_url, sector, &symbol).await?;
-            for doc in result {
-                if !document_exists_in_db(&conn, &doc) {
-                    insert_document(&conn, &doc)?;
+    for symbol in search_set {
+        let pool = pool.clone();
+        let pb = pb.clone();
+        let semaphore = semaphore.clone();
+        pb.set_message("Scraping Symbols from Yahoo Finance");
+
+        let task = tokio::task::spawn(async move {
+            let _permit = semaphore.acquire().await.expect("Semaphore acquire failed");
+
+            match scrape_symbols(base_url, "all", &symbol).await {
+                Ok(result) => {
+                    let conn = pool.get().expect("Failed to get connection from pool");
+                    for doc in result {
+                        if !document_exists_in_db(&conn, &doc) {
+                            insert_document(&conn, &doc).unwrap();
+                        }
+                    }
                 }
+                Err(e) => eprintln!("Error scraping symbols: {:?}", e),
             }
+
             pb.inc(1);
-        }
+        });
+
+        tasks.push(task);
     }
 
+    join_all(tasks).await;
     pb.finish_with_message("Completed symbol scraping");
 
     Ok(())
@@ -75,6 +106,9 @@ async fn scrape_symbols(base_url: &str, sector: &str, symbol: &str) -> Result<Ve
         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
         .send()
         .await?;
+    if response.status().as_u16() != 200{
+        eprintln!("Bad Response: {:?}", &response)
+    }
     let body = response.text().await?;
 
     let document = Html::parse_document(&body);
@@ -143,6 +177,5 @@ fn insert_document(conn: &Connection, doc: &Ticker) -> Result<()> {
             &doc.exchange
         ],
     )?;
-    dbg!(&doc);
     Ok(())
 }
