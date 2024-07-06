@@ -47,7 +47,11 @@ pub fn search_symbols_py(query: String, asset_class: String) -> PyObject {
         "Crypto" => AssetClass::Cryptocurrencies,
         _ => panic!("Asset class must be one of: Equity, ETF, Mutual Fund, Index, Currency, Futures, Crypto"),
     };
-    let tickers = get_symbols(asset_class, Category::All, Exchange::All).unwrap();
+    let tickers = tokio::task::block_in_place(move || {
+        tokio::runtime::Runtime::new().unwrap().block_on(
+            get_symbols(asset_class, Category::All, Exchange::All)
+       ).unwrap()   
+       });
     let symbols = tickers
         .iter()
         .filter(|tc| tc.symbol.to_lowercase().contains(&query.to_lowercase())
@@ -81,7 +85,11 @@ pub fn search_symbols_py(query: String, asset_class: String) -> PyObject {
 /// print(symbols_df)
 /// ```
 pub fn get_symbols_py() -> PyObject {
-    let symbols = get_symbols(AssetClass::All, Category::All, Exchange::All).unwrap();
+    let symbols = tokio::task::block_in_place(move || {
+        tokio::runtime::Runtime::new().unwrap().block_on(
+            get_symbols(AssetClass::All, Category::All, Exchange::All)
+       ).unwrap()   
+       });
     Python::with_gil(|py| {
         let pandas = py.import("pandas").expect("Failed to import pandas");
         let list_of_dicts = PyList::empty(py);

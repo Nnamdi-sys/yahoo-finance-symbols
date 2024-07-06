@@ -10,25 +10,33 @@ use rusqlite::{Result, ToSql};
 use serde::{Deserialize, Serialize};
 use r2d2_sqlite::SqliteConnectionManager;
 use keys::{AssetClass, Category, Exchange};
+use tokio::sync::OnceCell;
 
 
-static EMBEDDED_DATABASE: &[u8] = include_bytes!("sqlite/symbols.db");
+static DATABASE_POOL: OnceCell<Pool<SqliteConnectionManager>> = OnceCell::const_new();
 
-lazy_static::lazy_static! {
-    static ref DATABASE_POOL: Pool<SqliteConnectionManager> = {
-        let db_file = "symbols.db";
-        let db_path = PathBuf::from(db_file);
+async fn initialize_database() -> Result<Pool<SqliteConnectionManager>> {
+    let db_file = "symbols.db";
+    let db_path = PathBuf::from(db_file);
 
-        if !db_path.exists() {
-            std::fs::write(db_file, EMBEDDED_DATABASE)
-                .expect("Failed to write embedded database to file");
-        }
-        let manager = SqliteConnectionManager::file(db_file);
-        let pool = Pool::new(manager).expect("Failed to create database connection pool");
+    if !db_path.exists() {
+        save_symbols(&db_path).await.expect("Failed to save symbols");
+    }
 
-        pool
-    };
+    let manager = SqliteConnectionManager::file(db_file);
+    let pool = Pool::new(manager).expect("Failed to create database connection pool");
+
+    Ok(pool)
 }
+
+async fn get_database_pool() -> Result<&'static Pool<SqliteConnectionManager>> {
+    if DATABASE_POOL.get().is_none() {
+        let pool = initialize_database().await?;
+        DATABASE_POOL.set(pool).unwrap();
+    }
+    Ok(DATABASE_POOL.get().unwrap())
+}
+
 
 
 pub async fn update_database() -> Result<(), Box<dyn Error>> {
@@ -82,13 +90,14 @@ impl Symbol {
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn Error>> {
-///     let result = get_symbol("AAPL")?;
+///     let result = get_symbol("AAPL").await?;
 ///     println!("{:?}", result);
 ///     Ok(())
 /// }
 /// ```
-pub fn get_symbol(symbol: &str) -> Result<Symbol> {
-    let conn = DATABASE_POOL.clone().get().expect("Failed to get connection from pool");
+pub async fn get_symbol(symbol: &str) -> Result<Symbol> {
+    let pool = get_database_pool().await?;
+    let conn = pool.get().expect("Failed to get connection from pool");
     let mut stmt = conn.prepare("SELECT * FROM symbols WHERE symbol = ?")
         .expect("Failed to prepare statement");
 
@@ -126,32 +135,33 @@ pub fn get_symbol(symbol: &str) -> Result<Symbol> {
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn Error>> {
-///     let result = get_symbols(AssetClass::Stocks, Category::Technology, Exchange::NASDAQ)?;
+///     let result = get_symbols(AssetClass::Stocks, Category::Technology, Exchange::NASDAQ).await?;
 ///     println!("{:?}", result);
-///     let result = get_symbols(AssetClass::ETFs, Category::All, Exchange::All)?;
+///     let result = get_symbols(AssetClass::ETFs, Category::All, Exchange::All).await?;
 ///     println!("{:?}", result);
-///     let result = get_symbols(AssetClass::Futures, Category::All, Exchange::All)?;
+///     let result = get_symbols(AssetClass::Futures, Category::All, Exchange::All).await?;
 ///     println!("{:?}", result);
-///     let result = get_symbols(AssetClass::Indices, Category::All, Exchange::All)?;
+///     let result = get_symbols(AssetClass::Indices, Category::All, Exchange::All).await?;
 ///     println!("{:?}", result);
-///     let result = get_symbols(AssetClass::MutualFunds, Category::All, Exchange::All)?;
+///     let result = get_symbols(AssetClass::MutualFunds, Category::All, Exchange::All).await?;
 ///     println!("{:?}", result);
-///     let result = get_symbols(AssetClass::Cryptocurrencies, Category::All, Exchange::All)?;
+///     let result = get_symbols(AssetClass::Cryptocurrencies, Category::All, Exchange::All).await?;
 ///     println!("{:?}", result);
-///     let result = get_symbols(AssetClass::Currencies, Category::All, Exchange::All)?;
+///     let result = get_symbols(AssetClass::Currencies, Category::All, Exchange::All).await?;
 ///     println!("{:?}", result);
 ///     Ok(())
 /// }
 /// ```
-pub fn get_symbols(asset_class: AssetClass, category: Category, exchange: Exchange) -> Result<Vec<Symbol>> {
-    let conn = DATABASE_POOL.clone().get().expect("Failed to get connection from pool");
+pub async fn get_symbols(asset_class: AssetClass, category: Category, exchange: Exchange) -> Result<Vec<Symbol>> {
+    let pool = get_database_pool().await?;
+    let conn = pool.get().expect("Failed to get connection from pool");
 
     // Prepare a dynamic number of placeholders and values based on the provided filters
     let (mut placeholders, mut values): (Vec<String>, Vec<&dyn ToSql>) = (Vec::new(), Vec::new());
 
-    let asset_classes = asset_class.to_string_vec();
-    let categories = category.to_string_vec();
-    let exchanges = exchange.to_string_vec();
+    let asset_classes = asset_class.to_string_vec().await;
+    let categories = category.to_string_vec().await;
+    let exchanges = exchange.to_string_vec().await;
 
     placeholders.push(format!("asset_class IN ({})", (0..asset_classes.len()).map(|_| "?").collect::<Vec<_>>().join(",")));
     values.extend(asset_classes.iter().map(|s| s as &dyn ToSql));
@@ -180,15 +190,17 @@ pub fn get_symbols(asset_class: AssetClass, category: Category, exchange: Exchan
     symbols
 }
 
-pub fn get_symbols_count() -> Result<i64> {
-    let conn = DATABASE_POOL.clone().get().expect("Failed to get connection from pool");
+pub async fn get_symbols_count() -> Result<i64> {
+    let pool = get_database_pool().await?;
+    let conn = pool.get().expect("Failed to get connection from pool");
     let sql = "SELECT COUNT(*) FROM symbols";
     let count: i64 = conn.query_row(sql, [], |row| row.get(0))?;
     Ok(count)
 }
 
-pub fn get_distinct_exchanges() -> Result<Vec<String>> {
-    let conn = DATABASE_POOL.clone().get().expect("Failed to get connection from pool");
+pub async fn get_distinct_exchanges() -> Result<Vec<String>> {
+    let pool = get_database_pool().await?;
+    let conn = pool.get().expect("Failed to get connection from pool");
     let mut stmt = conn
         .prepare("SELECT DISTINCT exchange FROM symbols")
         .expect("Failed to prepare statement");
@@ -201,8 +213,9 @@ pub fn get_distinct_exchanges() -> Result<Vec<String>> {
     exchanges
 }
 
-pub fn get_distinct_categories() -> Result<Vec<String>> {
-    let conn = DATABASE_POOL.clone().get().expect("Failed to get connection from pool");
+pub async fn get_distinct_categories() -> Result<Vec<String>> {
+    let pool = get_database_pool().await?;
+    let conn = pool.get().expect("Failed to get connection from pool");
     let mut stmt = conn
         .prepare("SELECT DISTINCT category FROM symbols")
         .expect("Failed to prepare statement");
@@ -215,8 +228,9 @@ pub fn get_distinct_categories() -> Result<Vec<String>> {
     categories
 }
 
-pub fn get_distinct_asset_classes() -> Result<Vec<String>> {
-    let conn = DATABASE_POOL.clone().get().expect("Failed to get connection from the pool");
+pub async fn get_distinct_asset_classes() -> Result<Vec<String>> {
+    let pool = get_database_pool().await?;
+    let conn = pool.get().expect("Failed to get connection from pool");
     let mut stmt = conn
         .prepare("SELECT DISTINCT asset_class FROM symbols")
         .expect("Failed to prepare statement");
@@ -245,12 +259,16 @@ pub fn get_distinct_asset_classes() -> Result<Vec<String>> {
 ///
 /// ```
 /// use yahoo_finance_symbols::search_symbols;
-///
-/// let symbols = search_symbols("Apple", "Equity").unwrap();
-/// println!("{:?}", symbols);
-///
+/// use std::error::Error;
+/// 
+/// #[tokio::main]
+/// async fn main() -> Result<(), Box<dyn Error>> {
+///     let symbols = search_symbols("Apple", "Equity").await?;
+///     println!("{:?}", symbols);
+///     Ok(())
+/// }
 /// ```
-pub fn search_symbols(query: &str, asset_class: &str) -> Result<HashMap<String, String>> {
+pub async fn search_symbols(query: &str, asset_class: &str) -> Result<HashMap<String, String>> {
     let asset_class = match asset_class {
         "Equity" => AssetClass::Stocks,
         "ETF" => AssetClass::ETFs,
@@ -261,7 +279,7 @@ pub fn search_symbols(query: &str, asset_class: &str) -> Result<HashMap<String, 
         "Crypto" => AssetClass::Cryptocurrencies,
         _ => panic!("Asset class must be one of: Equity, ETF, Mutual Fund, Index, Currency, Futures, Crypto"),
     };
-    let tickers = get_symbols(asset_class, Category::All, Exchange::All).unwrap();
+    let tickers = get_symbols(asset_class, Category::All, Exchange::All).await.unwrap();
     let symbols = tickers
         .iter()
         .filter(|tc| tc.symbol.to_lowercase().contains(&query.to_lowercase())
@@ -275,23 +293,14 @@ pub fn search_symbols(query: &str, asset_class: &str) -> Result<HashMap<String, 
 #[cfg(test)]
 
 mod tests {
-    use crate::{get_symbols_count, update_database};
+    use crate::get_symbols_count;
 
     #[tokio::test]
     async fn check_symbols_count() {
 
-        let mut symbols_count = get_symbols_count().unwrap_or_default() as usize;
+        let symbols_count = get_symbols_count().await.unwrap();
 
-        dbg!(symbols_count);
-        
-        if symbols_count < 250_000 {
-            let _ = update_database().await.unwrap();
-            symbols_count = get_symbols_count().unwrap() as usize;
-        }
-
-        dbg!(symbols_count);
-
-        assert!(symbols_count > 250_000);
+        assert!(symbols_count > 350_000);
     }
 }
 

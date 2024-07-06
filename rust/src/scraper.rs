@@ -60,7 +60,7 @@ pub async fn save_symbols(db_path: &Path) -> Result<(), Box<dyn Error>> {
             .progress_chars("#>-"),
     );
 
-    let concurrency_limit = 10; // Set the desired concurrency limit
+    let concurrency_limit = 5; // Set the desired concurrency limit
     let semaphore = Arc::new(Semaphore::new(concurrency_limit));
     let mut tasks = Vec::new();
 
@@ -78,7 +78,7 @@ pub async fn save_symbols(db_path: &Path) -> Result<(), Box<dyn Error>> {
                     let conn = pool.get().expect("Failed to get connection from pool");
                     for doc in result {
                         if !document_exists_in_db(&conn, &doc) {
-                            insert_document(&conn, &doc).unwrap();
+                            insert_document(&conn, &doc).unwrap_or_else(|_| {})
                         }
                     }
                 }
@@ -99,16 +99,13 @@ pub async fn save_symbols(db_path: &Path) -> Result<(), Box<dyn Error>> {
 
 
 async fn scrape_symbols(base_url: &str, sector: &str, symbol: &str) -> Result<Vec<Ticker>, Box<dyn Error>> {
-    let url =   format!("{}{}?s={}&t=A&b=0&c=5000", base_url, sector, symbol);
+    let url =   format!("{}{}?s={}&t=A&b=0&c=10000", base_url, sector, symbol);
     let client = Client::new();
     let response = client
         .get(url)
         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
         .send()
         .await?;
-    if response.status().as_u16() != 200{
-        eprintln!("Bad Response: {:?}", &response)
-    }
     let body = response.text().await?;
 
     let document = Html::parse_document(&body);

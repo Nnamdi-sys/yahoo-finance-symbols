@@ -1,6 +1,6 @@
 # YAHOO FINANCE SYMBOLS
 
-This Library helps in scraping 250,000+ symbols from yahoo finance. The symbols are saved in a local sqlite database which can be used directly or accessed with the rust or python library functions.
+This Library helps in scraping 350,000+ symbols from yahoo finance. The symbols are saved in a local sqlite database which can be used directly or accessed with the rust or python library functions.
 
 ## Installation
 
@@ -41,16 +41,21 @@ ys.update_database()
 ``` rust
 use yahoo_finance_symbols::keys::{AssetClass, Category, Exchange};
 use yahoo_finance_symbols::{get_symbols, search_symbols, update_database};
+use std::error::Error;
 
-// Fetch All Symbols
-let all_symbols = get_symbols(AssetClass::All, Category::All, Exchange::All)?;
-println!("{:?}", all_symbols);
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
 
-// Search for Symbols with a Keyword
-let symbols = search_symbols("Apple", "Equity").unwrap();
-println!("{:?}", symbols);
+    // Fetch All Symbols
+    let all_symbols = get_symbols(AssetClass::All, Category::All, Exchange::All).await?;
+    println!("{:?}", all_symbols);
 
-// Update the Database
-update_database().await()?;
+    // Search for Symbols with a Keyword
+    let symbols = search_symbols("Apple", "Equity").await?;
+    println!("{:?}", symbols);
+
+    // Update the Database
+    update_database().await()?;
+}
 ```
 

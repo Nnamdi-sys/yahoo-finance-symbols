@@ -10,7 +10,7 @@ pub enum AssetClass {
 }
 
 impl AssetClass {
-    pub fn to_string_vec(&self) -> Vec<String> {
+    pub async fn to_string_vec(&self) -> Vec<String> {
         match self {
             AssetClass::Stocks => vec!["Stocks".to_string()],
             AssetClass::ETFs => vec!["ETF".to_string()],
@@ -19,7 +19,7 @@ impl AssetClass {
             AssetClass::Futures => vec!["Future".to_string()],
             AssetClass::Currencies => vec!["Currency".to_string()],
             AssetClass::Cryptocurrencies => vec!["CRYPTOCURRENCY".to_string()],
-            AssetClass::All => crate::get_distinct_asset_classes().unwrap(),
+            AssetClass::All => crate::get_distinct_asset_classes().await.unwrap(),
         }
     }
 }
@@ -46,7 +46,7 @@ pub enum Category {
 }
 
 impl Category {
-    pub fn to_string_vec(&self) -> Vec<String> {
+    pub async fn to_string_vec(&self) -> Vec<String> {
         match self {
             Category::ConsumerCyclical => vec!["Consumer Cyclical".to_string()],
             Category::CommunicationServices => vec!["Communication Services".to_string()],
@@ -65,7 +65,7 @@ impl Category {
             Category::IndustrialGoods => vec!["Industrial Goods".to_string()],
             Category::ConsumerGoods => vec!["Consumer Goods".to_string()],
             Category::Conglomerates => vec!["Conglomerates".to_string()],
-            Category::All => crate::get_distinct_categories().unwrap(),
+            Category::All => crate::get_distinct_categories().await.unwrap(),
         }
     }
 }
@@ -185,7 +185,7 @@ pub enum Exchange {
 
 
 impl Exchange {
-    pub fn to_string_vec(&self) -> Vec<String> {
+    pub async fn to_string_vec(&self) -> Vec<String> {
         match self {
             Exchange::NewYorkStockExchange => vec!["NYQ".to_string()],
             Exchange::NASDAQ => vec!["NMS".to_string()],
@@ -295,7 +295,7 @@ impl Exchange {
             Exchange::CaracasStockExchange => vec!["CCS".to_string()],
             Exchange::OPI => vec!["OPI".to_string()],
             Exchange::Euronext => vec!["ENX".to_string()],
-            Exchange::All => crate::get_distinct_exchanges().unwrap(),
+            Exchange::All => crate::get_distinct_exchanges().await.unwrap(),
         }
     }
 }
