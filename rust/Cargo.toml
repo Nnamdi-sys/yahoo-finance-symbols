@@ -6,6 +6,7 @@ readme = "../README.md"
 description = "A Library for scraping all Ticker Symbols from Yahoo Finance"
 repository = "https://github.com/Nnamdi-sys/yahoo-finance-symbols"
 license = "MIT"
+exclude = ["symbols.db"]
 
 
 [dependencies]
