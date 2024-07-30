@@ -1,3 +1,6 @@
+use std::fs::File;
+use std::io::{BufWriter, Write};
+use std::path::PathBuf;
 use std::{path::Path, sync::Arc};
 use std::error::Error;
 use rusqlite::params;
@@ -6,7 +9,7 @@ use r2d2::Pool;
 use rusqlite::{Connection, Result};
 use r2d2_sqlite::SqliteConnectionManager;
 use serde::{Deserialize, Serialize};
-use reqwest::Client;
+use reqwest::{Client, Url};
 use futures::future::join_all;
 use indicatif::{ProgressBar, ProgressStyle};
 use tokio::sync::Semaphore;
@@ -174,5 +177,14 @@ fn insert_document(conn: &Connection, doc: &Ticker) -> Result<()> {
             &doc.exchange
         ],
     )?;
+    Ok(())
+}
+
+pub async fn download_file(url: &str, path: &PathBuf) -> Result<(), Box<dyn Error>> {
+    let response = reqwest::get(Url::parse(url)?).await?;
+    let mut dest = BufWriter::new(File::create(path)?);
+    let content = response.bytes().await?;
+    dest.write_all(&content)?;
+    dest.flush()?;
     Ok(())
 }

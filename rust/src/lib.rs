@@ -4,7 +4,7 @@ pub mod scraper;
 use r2d2::Pool;
 use std::error::Error;
 use std::path::PathBuf;
-use scraper::save_symbols;
+use scraper::{download_file, save_symbols};
 use std::collections::HashMap;
 use rusqlite::{Result, ToSql};
 use serde::{Deserialize, Serialize};
@@ -20,7 +20,11 @@ async fn initialize_database() -> Result<Pool<SqliteConnectionManager>> {
     let db_path = PathBuf::from(db_file);
 
     if !db_path.exists() {
-        save_symbols(&db_path).await.expect("Failed to save symbols");
+        let url = "https://github.com/Nnamdi-sys/yahoo-finance-symbols/raw/main/rust/src/symbols.db";
+        if download_file(url, &db_path).await.is_err() {
+            println!("Unable to download database from: {}. Scraping symbols now from Yahoo Finance", url);
+            save_symbols(&db_path).await.expect("Failed to Get Symbols Database");
+        }
     }
 
     let manager = SqliteConnectionManager::file(db_file);
@@ -42,6 +46,10 @@ async fn get_database_pool() -> Result<&'static Pool<SqliteConnectionManager>> {
 pub async fn update_database() -> Result<(), Box<dyn Error>> {
     let db_file = "symbols.db";
     let db_path = PathBuf::from(db_file);
+
+    if db_path.exists() {
+        tokio::fs::remove_file(&db_path).await?;
+    }
 
     save_symbols(&db_path).await?;
 
@@ -293,14 +301,16 @@ pub async fn search_symbols(query: &str, asset_class: &str) -> Result<HashMap<St
 #[cfg(test)]
 
 mod tests {
-    use crate::get_symbols_count;
+
+    use crate::{get_symbols_count, update_database};
 
     #[tokio::test]
     async fn check_symbols_count() {
 
         let symbols_count = get_symbols_count().await.unwrap();
 
-        assert!(symbols_count > 350_000);
+        assert!(symbols_count > 450_000);
+        update_database().await.unwrap();
     }
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "yahoo-finance-symbols"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 readme = "../README.md"
 description = "A Library for scraping all Ticker Symbols from Yahoo Finance"
