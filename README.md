@@ -1,6 +1,6 @@
 # YAHOO FINANCE SYMBOLS
 
-This Library helps in scraping 350,000+ symbols from yahoo finance. The symbols are saved in a local sqlite database which can be used directly or accessed with the rust or python library functions.
+This Library helps in scraping 450,000+ symbols from yahoo finance. The symbols are saved in a local sqlite database which can be used directly or accessed with the rust or python library functions.
 
 ## Installation
 
