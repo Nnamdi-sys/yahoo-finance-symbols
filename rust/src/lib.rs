@@ -4,6 +4,7 @@ pub mod scraper;
 use r2d2::Pool;
 use std::error::Error;
 use std::path::PathBuf;
+use polars::prelude::*;
 use scraper::{download_file, save_symbols};
 use std::collections::HashMap;
 use rusqlite::{Result, ToSql};
@@ -297,20 +298,57 @@ pub async fn search_symbols(query: &str, asset_class: &str) -> Result<HashMap<St
     Ok(symbols)
 }
 
+/// Fetches all Symbols into a Polars DataFrame
+/// 
+/// # Returns
+/// 
+/// * `DataFrame` - Polars DataFrame of all Yahoo Finance Symbols
+/// 
+/// # Example
+/// 
+/// ```
+/// use yahoo_finance_symbols::get_symbols_df;
+/// use std::error::Error;
+/// 
+/// #[tokio::main]
+/// async fn main() -> Result<(), Box<dyn Error>> {
+///     let symbols_df = get_symbols_df.await?
+///     println!("{:?}", symbols_df);
+///     Ok(())
+/// }
+/// ```
+pub async fn get_symbols_df() -> Result<DataFrame, Box<dyn Error>> {
+    let symbols = get_symbols(AssetClass::All, Category::All, Exchange::All).await?;
+
+    let symbols_series: Vec<Series> = vec![
+        Series::new("symbol", symbols.iter().map(|s| s.symbol.as_str()).collect::<Vec<&str>>()),
+        Series::new("name", symbols.iter().map(|s| s.name.as_str()).collect::<Vec<&str>>()),
+        Series::new("category", symbols.iter().map(|s| s.category.as_str()).collect::<Vec<&str>>()),
+        Series::new("asset_class", symbols.iter().map(|s| s.asset_class.as_str()).collect::<Vec<&str>>()),
+        Series::new("exchange", symbols.iter().map(|s| s.exchange.as_str()).collect::<Vec<&str>>()),
+    ];
+
+    let symbols_df = DataFrame::new(symbols_series)?;
+
+    Ok(symbols_df)
+}
+
 
 #[cfg(test)]
 
 mod tests {
 
-    use crate::{get_symbols_count, update_database};
+    use crate::{get_symbols_count, get_symbols_df};
 
     #[tokio::test]
     async fn check_symbols_count() {
-
         let symbols_count = get_symbols_count().await.unwrap();
+        println!("{}", symbols_count);
+
+        let symbols_df = get_symbols_df().await.unwrap();
+        println!("{:?}", symbols_df);
 
         assert!(symbols_count > 450_000);
-        update_database().await.unwrap();
     }
 }
 

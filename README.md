@@ -39,15 +39,14 @@ ys.update_database()
 ### Rust
 
 ``` rust
-use yahoo_finance_symbols::keys::{AssetClass, Category, Exchange};
-use yahoo_finance_symbols::{get_symbols, search_symbols, update_database};
+use yahoo_finance_symbols::{get_symbols_df, search_symbols, update_database};
 use std::error::Error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
 
     // Fetch All Symbols
-    let all_symbols = get_symbols(AssetClass::All, Category::All, Exchange::All).await?;
+    let all_symbols = get_symbols_df().await?;
     println!("{:?}", all_symbols);
 
     // Search for Symbols with a Keyword
