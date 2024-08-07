@@ -312,7 +312,7 @@ pub async fn search_symbols(query: &str, asset_class: &str) -> Result<HashMap<St
 /// 
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn Error>> {
-///     let symbols_df = get_symbols_df.await?
+///     let symbols_df = get_symbols_df().await?;
 ///     println!("{:?}", symbols_df);
 ///     Ok(())
 /// }
